@@ -1,0 +1,9 @@
+[package]
+name = "quintic_hermite_bevy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.14.1"
+bevy-inspector-egui = {version = "0.25.2", default-features = false, features = ["bevy_render", "egui_open_url"]}
+bevy_mod_picking = "0.20.1"
