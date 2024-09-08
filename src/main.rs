@@ -9,7 +9,7 @@ use bevy::{
     color::palettes::basic::*,
     math::VectorSpace,
     prelude::*,
-    sprite::{Anchor, MaterialMesh2dBundle},
+    sprite::{Anchor, Material2d, MaterialMesh2dBundle, Mesh2dHandle},
 };
 use bevy_inspector_egui::{
     prelude::*,
@@ -230,6 +230,54 @@ enum CurveHandle {
     Acceleration1,
 }
 
+#[derive(Bundle)]
+struct HandleBundle<M: Material2d> {
+    mesh_2d_bundle: MaterialMesh2dBundle<M>,
+    pickable: PickableBundle,
+    on_drag_start: On<Pointer<DragStart>>,
+    on_drag_end: On<Pointer<DragEnd>>,
+    on_drag: On<Pointer<Drag>>,
+}
+
+impl<M: Material2d> HandleBundle<M> {
+    fn new(pos: Vec2, shape: &Mesh2dHandle, material: &Handle<M>) -> Self {
+        Self {
+            mesh_2d_bundle: MaterialMesh2dBundle {
+                transform: Transform::from_translation(pos.extend(0.0)),
+                mesh: shape.clone(),
+                material: material.clone(),
+                ..default()
+            },
+            pickable: PickableBundle::default(),
+            on_drag_start: On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
+            on_drag_end: On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+            on_drag: On::<Pointer<Drag>>::target_component_mut::<Transform>(|drag, transform| {
+                transform.translation += Vec2 {
+                    y: drag.delta.y.neg(),
+                    ..drag.delta
+                }
+                .extend(0.0)
+                    / 128.0;
+            }),
+        }
+    }
+
+    fn new_child(pos: Vec2, shape: &Mesh2dHandle, material: &Handle<M>) -> Self {
+        Self {
+            mesh_2d_bundle: MaterialMesh2dBundle {
+                transform: Transform::from_translation(pos.extend(0.0)),
+                mesh: shape.clone(),
+                material: material.clone(),
+                ..default()
+            },
+            pickable: PickableBundle::default(),
+            on_drag_start: On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
+            on_drag_end: On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+            on_drag: On::<Pointer<Drag>>::run(|_: ()| {}),
+        }
+    }
+}
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -246,7 +294,7 @@ fn setup(
         ..default()
     });
 
-    let circle_mesh_handle = meshes.add(Circle::new(16.0_f32.recip()));
+    let circle_mesh_handle = meshes.add(Circle::new(16.0_f32.recip())).into();
     let color_mat_handle = materials.add(ColorMaterial::from_color(WHITE));
 
     let pos0 = Vec2 { x: -1.0, y: 0.0 };
@@ -288,94 +336,52 @@ fn setup(
         .with_children(|cb| {
             cb.spawn((
                 CurveHandle::Position0,
-                MaterialMesh2dBundle {
-                    mesh: circle_mesh_handle.clone().into(),
-                    material: color_mat_handle.clone(),
-                    transform: Transform::from_translation(pos0.extend(0.0)),
-                    ..default()
-                },
-                PickableBundle::default(),
-                On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
-                On::<Pointer<Drag>>::target_component_mut::<Transform>(|drag, transform| {
-                    transform.translation += Vec2 {
-                        y: drag.delta.y.neg(),
-                        ..drag.delta
-                    }
-                    .extend(0.0)
-                        / 128.0;
-                }),
+                Name::new("Position 0"),
+                HandleBundle::new(pos0, &circle_mesh_handle, &color_mat_handle),
             ))
             .with_children(|cbp| {
                 cbp.spawn((
                     CurveHandle::Velocity0,
-                    MaterialMesh2dBundle {
-                        mesh: circle_mesh_handle.clone().into(),
-                        material: color_mat_handle.clone(),
-                        transform: Transform::from_translation((vel0 * ARROW_SCALE).extend(0.0)),
-                        ..default()
-                    },
-                    PickableBundle::default(),
-                    On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                    On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+                    Name::new("Velocity 0"),
+                    HandleBundle::new_child(
+                        vel0 * ARROW_SCALE,
+                        &circle_mesh_handle,
+                        &color_mat_handle,
+                    ),
                 ));
                 cbp.spawn((
                     CurveHandle::Acceleration0,
-                    MaterialMesh2dBundle {
-                        mesh: circle_mesh_handle.clone().into(),
-                        material: color_mat_handle.clone(),
-                        transform: Transform::from_translation((acc0 * ARROW_SCALE).extend(0.0)),
-                        ..default()
-                    },
-                    PickableBundle::default(),
-                    On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                    On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+                    Name::new("Acceleration 0"),
+                    HandleBundle::new_child(
+                        acc0 * ARROW_SCALE,
+                        &circle_mesh_handle,
+                        &color_mat_handle,
+                    ),
                 ));
             });
             cb.spawn((
                 CurveHandle::Position1,
-                MaterialMesh2dBundle {
-                    mesh: circle_mesh_handle.clone().into(),
-                    material: color_mat_handle.clone(),
-                    transform: Transform::from_translation(pos1.extend(0.0)),
-                    ..default()
-                },
-                PickableBundle::default(),
-                On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
-                On::<Pointer<Drag>>::target_component_mut::<Transform>(|drag, transform| {
-                    transform.translation += Vec2 {
-                        y: drag.delta.y.neg(),
-                        ..drag.delta
-                    }
-                    .extend(0.0)
-                        / 128.0;
-                }),
+                Name::new("Position 1"),
+                HandleBundle::new(pos1, &circle_mesh_handle, &color_mat_handle),
             ))
             .with_children(|cbp| {
                 cbp.spawn((
                     CurveHandle::Velocity1,
-                    MaterialMesh2dBundle {
-                        mesh: circle_mesh_handle.clone().into(),
-                        material: color_mat_handle.clone(),
-                        transform: Transform::from_translation((vel1 * ARROW_SCALE).extend(0.0)),
-                        ..default()
-                    },
-                    PickableBundle::default(),
-                    On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                    On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+                    Name::new("Velocity 1"),
+                    HandleBundle::new_child(
+                        vel1 * ARROW_SCALE,
+                        &circle_mesh_handle,
+                        &color_mat_handle,
+                    ),
                 ));
                 cbp.spawn((
                     CurveHandle::Acceleration1,
-                    MaterialMesh2dBundle {
-                        mesh: circle_mesh_handle.clone().into(),
-                        material: color_mat_handle.clone(),
-                        transform: Transform::from_translation((acc1 * ARROW_SCALE).extend(0.0)),
-                        ..default()
-                    },
-                    PickableBundle::default(),
-                    On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-                    On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
+                    Name::new("Acceleration 1"),
+                    HandleBundle::new_child(
+                        acc1 * ARROW_SCALE,
+                        &circle_mesh_handle,
+                        &color_mat_handle,
+                    ),
                 ));
             });
         });
