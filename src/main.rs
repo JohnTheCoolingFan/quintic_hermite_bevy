@@ -203,7 +203,11 @@ struct DrawOptions {
 }
 
 fn draw_curve(
-    the_curve: Query<(&Transform, &PlaygroundCurve, &PolynomialCurveSegment<Vec2>)>,
+    the_curve: Query<
+        (&Transform, &PlaygroundCurve, &PolynomialCurveSegment<Vec2>),
+        Without<CurveInfoTextMarker>,
+    >,
+    mut info_text: Query<&mut Text, With<CurveInfoTextMarker>>,
     draw_options: Res<DrawOptions>,
     mut gizmos: Gizmos,
 ) {
@@ -221,6 +225,8 @@ fn draw_curve(
     gizmos.arrow_2d(pos1, pos1 + vel1 * ARROW_SCALE, YELLOW);
     gizmos.arrow_2d(pos0, pos0 + acc0 * ARROW_SCALE, BLUE);
     gizmos.arrow_2d(pos1, pos1 + acc1 * ARROW_SCALE, BLUE);
+
+    let mut curve_info_text = info_text.single_mut();
 
     if draw_options.draw_parametric_length_range {
         let positions: Vec<Vec2> = (0..=128)
@@ -248,6 +254,12 @@ fn draw_curve(
                 min = line_length
             }
         }
+
+        curve_info_text.sections = vec![TextSection::from(format!(
+            "Curve parametric length info: max {max:.6}; min {min:.6}; difference {:.6}",
+            max - min
+        ))];
+
         for (start, end) in positions.windows(2).map(|segment| {
             let [start, end, ..] = *segment else {
                 unreachable!()
@@ -260,6 +272,7 @@ fn draw_curve(
             gizmos.line_2d(start, end, segment_color);
         }
     } else {
+        curve_info_text.sections.clear();
         let positions_iter = (0..=128).map(|i| {
             let t = 128.0_f32.recip() * i as f32;
             curve.position(t)
@@ -348,6 +361,9 @@ impl<M: Material2d> HandleBundle<M> {
     }
 }
 
+#[derive(Debug, Clone, Copy, Component)]
+struct CurveInfoTextMarker;
+
 fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -358,11 +374,24 @@ fn setup(
             TextSection::from("Drag white circles to change input values\n"),
             TextSection::from("Yellow arrows are velocity (first derivative)\n"),
             TextSection::from("Blue arrows are acceleration (second derivative)\n"),
+            TextSection::from(
+                "Red segments have bigger length than green, on the scale of the whole curve\n",
+            ),
         ]),
-        transform: Transform::from_xyz(-4.5, -1.3, 0.0).with_scale(Vec3::splat(128.0_f32.recip())),
+        transform: Transform::from_xyz(-4.5, -1.0, 0.0).with_scale(Vec3::splat(128.0_f32.recip())),
         text_anchor: Anchor::TopLeft,
         ..default()
     });
+    commands.spawn((
+        CurveInfoTextMarker,
+        Text2dBundle {
+            text: Text::from_sections([]),
+            text_anchor: Anchor::TopLeft,
+            transform: Transform::from_xyz(-4.5, -2.0, 0.0)
+                .with_scale(Vec3::splat(128.0_f32.recip())),
+            ..default()
+        },
+    ));
 
     let circle_mesh_handle = meshes.add(Circle::new(16.0_f32.recip())).into();
     let color_mat_handle = materials.add(ColorMaterial::from_color(WHITE));
