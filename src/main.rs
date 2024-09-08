@@ -230,6 +230,45 @@ enum CurveHandle {
     Acceleration1,
 }
 
+struct HandleBundleFactory<M: Material2d> {
+    shape_handle: Mesh2dHandle,
+    shape_material: Handle<M>,
+}
+
+impl<M: Material2d> HandleBundleFactory<M> {
+    fn new(shape_handle: Mesh2dHandle, shape_material: Handle<M>) -> Self {
+        Self {
+            shape_handle,
+            shape_material,
+        }
+    }
+
+    fn new_handle(&self, pos: Vec2) -> HandleBundle<M> {
+        HandleBundle::new(
+            pos,
+            &self.shape_handle,
+            &self.shape_material,
+            On::<Pointer<Drag>>::target_component_mut::<Transform>(|drag, transform| {
+                transform.translation += Vec2 {
+                    y: drag.delta.y.neg(),
+                    ..drag.delta
+                }
+                .extend(0.0)
+                    / 128.0;
+            }),
+        )
+    }
+
+    fn new_child_handle(&self, pos: Vec2) -> HandleBundle<M> {
+        HandleBundle::new(
+            pos,
+            &self.shape_handle,
+            &self.shape_material,
+            On::<Pointer<Drag>>::run(|_: ()| {}),
+        )
+    }
+}
+
 #[derive(Bundle)]
 struct HandleBundle<M: Material2d> {
     mesh_2d_bundle: MaterialMesh2dBundle<M>,
@@ -240,7 +279,12 @@ struct HandleBundle<M: Material2d> {
 }
 
 impl<M: Material2d> HandleBundle<M> {
-    fn new(pos: Vec2, shape: &Mesh2dHandle, material: &Handle<M>) -> Self {
+    fn new(
+        pos: Vec2,
+        shape: &Mesh2dHandle,
+        material: &Handle<M>,
+        on_drag: On<Pointer<Drag>>,
+    ) -> Self {
         Self {
             mesh_2d_bundle: MaterialMesh2dBundle {
                 transform: Transform::from_translation(pos.extend(0.0)),
@@ -251,29 +295,7 @@ impl<M: Material2d> HandleBundle<M> {
             pickable: PickableBundle::default(),
             on_drag_start: On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
             on_drag_end: On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
-            on_drag: On::<Pointer<Drag>>::target_component_mut::<Transform>(|drag, transform| {
-                transform.translation += Vec2 {
-                    y: drag.delta.y.neg(),
-                    ..drag.delta
-                }
-                .extend(0.0)
-                    / 128.0;
-            }),
-        }
-    }
-
-    fn new_child(pos: Vec2, shape: &Mesh2dHandle, material: &Handle<M>) -> Self {
-        Self {
-            mesh_2d_bundle: MaterialMesh2dBundle {
-                transform: Transform::from_translation(pos.extend(0.0)),
-                mesh: shape.clone(),
-                material: material.clone(),
-                ..default()
-            },
-            pickable: PickableBundle::default(),
-            on_drag_start: On::<Pointer<DragStart>>::target_insert(Pickable::IGNORE),
-            on_drag_end: On::<Pointer<DragEnd>>::target_insert(Pickable::default()),
-            on_drag: On::<Pointer<Drag>>::run(|_: ()| {}),
+            on_drag,
         }
     }
 }
@@ -296,6 +318,8 @@ fn setup(
 
     let circle_mesh_handle = meshes.add(Circle::new(16.0_f32.recip())).into();
     let color_mat_handle = materials.add(ColorMaterial::from_color(WHITE));
+
+    let handle_factory = HandleBundleFactory::new(circle_mesh_handle, color_mat_handle);
 
     let pos0 = Vec2 { x: -1.0, y: 0.0 };
     let vel0 = Vec2 { x: 0.0, y: PI };
@@ -337,51 +361,35 @@ fn setup(
             cb.spawn((
                 CurveHandle::Position0,
                 Name::new("Position 0"),
-                HandleBundle::new(pos0, &circle_mesh_handle, &color_mat_handle),
+                handle_factory.new_handle(pos0),
             ))
             .with_children(|cbp| {
                 cbp.spawn((
                     CurveHandle::Velocity0,
                     Name::new("Velocity 0"),
-                    HandleBundle::new_child(
-                        vel0 * ARROW_SCALE,
-                        &circle_mesh_handle,
-                        &color_mat_handle,
-                    ),
+                    handle_factory.new_child_handle(vel0 * ARROW_SCALE),
                 ));
                 cbp.spawn((
                     CurveHandle::Acceleration0,
                     Name::new("Acceleration 0"),
-                    HandleBundle::new_child(
-                        acc0 * ARROW_SCALE,
-                        &circle_mesh_handle,
-                        &color_mat_handle,
-                    ),
+                    handle_factory.new_child_handle(acc0 * ARROW_SCALE),
                 ));
             });
             cb.spawn((
                 CurveHandle::Position1,
                 Name::new("Position 1"),
-                HandleBundle::new(pos1, &circle_mesh_handle, &color_mat_handle),
+                handle_factory.new_handle(pos1),
             ))
             .with_children(|cbp| {
                 cbp.spawn((
                     CurveHandle::Velocity1,
                     Name::new("Velocity 1"),
-                    HandleBundle::new_child(
-                        vel1 * ARROW_SCALE,
-                        &circle_mesh_handle,
-                        &color_mat_handle,
-                    ),
+                    handle_factory.new_child_handle(vel1 * ARROW_SCALE),
                 ));
                 cbp.spawn((
                     CurveHandle::Acceleration1,
                     Name::new("Acceleration 1"),
-                    HandleBundle::new_child(
-                        acc1 * ARROW_SCALE,
-                        &circle_mesh_handle,
-                        &color_mat_handle,
-                    ),
+                    handle_factory.new_child_handle(acc1 * ARROW_SCALE),
                 ));
             });
         });
