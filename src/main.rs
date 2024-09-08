@@ -34,7 +34,9 @@ fn main() {
         .insert_resource(DebugPickingMode::Normal)
         .insert_resource(ClearColor(BLACK.into()))
         .init_resource::<CameraZoom>()
+        .init_resource::<DrawOptions>()
         .add_plugins(ResourceInspectorPlugin::<CameraZoom>::default())
+        .add_plugins(ResourceInspectorPlugin::<DrawOptions>::default())
         .add_systems(Startup, setup)
         .add_systems(
             Update,
@@ -194,8 +196,15 @@ fn camera_scale(mut camera: Query<&mut Transform, With<Camera2d>>, scale: Res<Ca
 
 const ARROW_SCALE: f32 = 0.25;
 
+#[derive(Reflect, InspectorOptions, Debug, Clone, Copy, Resource, Default)]
+#[reflect(Resource, InspectorOptions)]
+struct DrawOptions {
+    draw_parametric_length_range: bool,
+}
+
 fn draw_curve(
     the_curve: Query<(&Transform, &PlaygroundCurve, &PolynomialCurveSegment<Vec2>)>,
+    draw_options: Res<DrawOptions>,
     mut gizmos: Gizmos,
 ) {
     gizmos.grid_2d(Vec2::ZERO, 0.0, UVec2::splat(128), Vec2::ONE, GRAY);
@@ -213,11 +222,50 @@ fn draw_curve(
     gizmos.arrow_2d(pos0, pos0 + acc0 * ARROW_SCALE, BLUE);
     gizmos.arrow_2d(pos1, pos1 + acc1 * ARROW_SCALE, BLUE);
 
-    let positions_iter = (0..=128).map(|i| {
-        let t = 128.0_f32.recip() * i as f32;
-        curve.position(t)
-    });
-    gizmos.linestrip_2d(positions_iter, WHITE)
+    if draw_options.draw_parametric_length_range {
+        let positions: Vec<Vec2> = (0..=128)
+            .map(|i| {
+                let t = 128.0_f32.recip() * i as f32;
+                curve.position(t)
+            })
+            .collect();
+        let lengths = positions
+            .windows(2)
+            .map(|win| {
+                let [start, end, ..] = win else {
+                    unreachable!()
+                };
+                (*end - *start).length()
+            })
+            .collect::<Vec<_>>();
+        let mut max = f32::ZERO;
+        let mut min = f32::INFINITY;
+        for line_length in lengths {
+            if line_length > max {
+                max = line_length
+            }
+            if line_length < min {
+                min = line_length
+            }
+        }
+        for (start, end) in positions.windows(2).map(|segment| {
+            let [start, end, ..] = *segment else {
+                unreachable!()
+            };
+            (start, end)
+        }) {
+            let segment_length = (end - start).length();
+            let lerp_val = (segment_length - min) / (max - min);
+            let segment_color = GREEN.mix(&RED, lerp_val);
+            gizmos.line_2d(start, end, segment_color);
+        }
+    } else {
+        let positions_iter = (0..=128).map(|i| {
+            let t = 128.0_f32.recip() * i as f32;
+            curve.position(t)
+        });
+        gizmos.linestrip_2d(positions_iter, WHITE)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, Component)]
