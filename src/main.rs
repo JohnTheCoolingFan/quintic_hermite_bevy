@@ -6,7 +6,10 @@
 use std::{f32::consts::PI, ops::Neg};
 
 use bevy::{
-    color::palettes::basic::*, math::VectorSpace, prelude::*, sprite::MaterialMesh2dBundle,
+    color::palettes::basic::*,
+    math::VectorSpace,
+    prelude::*,
+    sprite::{Anchor, MaterialMesh2dBundle},
 };
 use bevy_inspector_egui::{
     prelude::*,
@@ -210,7 +213,7 @@ fn draw_curve(
     gizmos.arrow_2d(pos0, pos0 + acc0 * ARROW_SCALE, BLUE);
     gizmos.arrow_2d(pos1, pos1 + acc1 * ARROW_SCALE, BLUE);
 
-    let positions_iter = (0..128).map(|i| {
+    let positions_iter = (0..=128).map(|i| {
         let t = 128.0_f32.recip() * i as f32;
         curve.position(t)
     });
@@ -232,6 +235,17 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
+    commands.spawn(Text2dBundle {
+        text: Text::from_sections([
+            TextSection::from("Drag white circles to change input values\n"),
+            TextSection::from("Yellow arrows are velocity (first derivative)\n"),
+            TextSection::from("Blue arrows are acceleration (second derivative)\n"),
+        ]),
+        transform: Transform::from_xyz(-4.5, -1.3, 0.0).with_scale(Vec3::splat(128.0_f32.recip())),
+        text_anchor: Anchor::TopLeft,
+        ..default()
+    });
+
     let circle_mesh_handle = meshes.add(Circle::new(16.0_f32.recip()));
     let color_mat_handle = materials.add(ColorMaterial::from_color(WHITE));
 
